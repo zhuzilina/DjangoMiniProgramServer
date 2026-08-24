@@ -60,3 +60,17 @@ class Message(models.Model):
 
     class Meta:
         ordering = ['created_at']
+
+
+class News(models.Model):
+    """校园资讯（纯文本 + 元数据）"""
+    title = models.CharField('标题', max_length=200)
+    content = models.TextField('内容')
+    category = models.CharField('类别', max_length=50)
+    campus = models.CharField('校区', max_length=50)
+    publish_date = models.DateField('发布日期')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-publish_date', '-created_at']

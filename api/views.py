@@ -3,15 +3,16 @@ import json
 from asgiref.sync import sync_to_async
 from django.http import StreamingHttpResponse
 from django.views.decorators.csrf import csrf_exempt
+from rest_framework import viewsets
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.authtoken.models import Token
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAdminUser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .agent import run_agent_stream
-from .models import Conversation, Message, User
-from .serializers import MessageSerializer, UserSerializer
+from .models import Conversation, Message, News, User
+from .serializers import MessageSerializer, NewsSerializer, UserSerializer
 
 REGISTER_FIELDS = ['student_id', 'major', 'password', 'class_name', 'name', 'phone', 'campus']
 
@@ -155,6 +156,27 @@ class DeleteConversationView(APIView):
     def delete(self, request, conv_id):
         deleted, _ = request.user.conversations.filter(id=conv_id).delete()
         return Response({'deleted': deleted})
+
+
+class NewsViewSet(viewsets.ModelViewSet):
+    """校园资讯：增删改仅管理员(is_staff)，其余角色只读；列表支持 ?category=&campus= 过滤"""
+    queryset = News.objects.all()
+    serializer_class = NewsSerializer
+
+    def get_permissions(self):
+        if self.action in ('create', 'update', 'partial_update', 'destroy'):
+            return [IsAdminUser()]
+        return super().get_permissions()
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        category = self.request.query_params.get('category')
+        campus = self.request.query_params.get('campus')
+        if category:
+            qs = qs.filter(category=category)
+        if campus:
+            qs = qs.filter(campus=campus)
+        return qs
 
 
 async def error_stream(msg: str):

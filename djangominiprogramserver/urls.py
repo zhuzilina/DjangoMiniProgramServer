@@ -1,8 +1,12 @@
 """URL configuration for djangominiprogramserver project."""
 from django.contrib import admin
-from django.urls import path
+from django.urls import include, path
+from rest_framework.routers import DefaultRouter
 
 from api import views
+
+router = DefaultRouter()
+router.register('news', views.NewsViewSet, basename='news')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -16,4 +20,6 @@ urlpatterns = [
     path('api/conversations/', views.ConversationListView.as_view()),
     path('api/conversations/<int:conv_id>/messages/', views.ConversationMessagesView.as_view()),
     path('api/conversations/<int:conv_id>/', views.DeleteConversationView.as_view()),
+    # 校园资讯（ModelViewSet 增删改查）
+    path('api/', include(router.urls)),
 ]

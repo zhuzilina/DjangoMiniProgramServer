@@ -2,6 +2,7 @@
 import asyncio
 
 from django.test import TestCase
+from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
 from .models import Message, User
@@ -59,6 +60,37 @@ class FlowTests(TestCase):
         # 删除是级联：conversation + 其中 message 一并删
         self.assertEqual(self.c.delete(f'/api/conversations/{cid}/').json()['deleted'], 2)
         self.assertEqual(self.c.get(f'/api/conversations/{cid}/messages/').status_code, 404)
+
+    def test_news_crud(self):
+        news = {'title': '迎新晚会', 'content': '本周五晚举办迎新晚会',
+                'category': '活动', 'campus': '本部', 'publish_date': '2026-08-25'}
+        # 普通用户：只读，写入返回 403
+        self.c.post('/api/register/', USER, format='json')
+        tok = self.c.post('/api/login/', {'student_id': '20240001', 'password': 'abc123'}, format='json').json()['token']
+        self.c.credentials(HTTP_AUTHORIZATION='Token ' + tok)
+        self.assertEqual(self.c.post('/api/news/', news, format='json').status_code, 403)
+        self.assertEqual(len(self.c.get('/api/news/').json()), 0)
+
+        # 管理员：完整 CRUD
+        admin = User.objects.create_superuser(
+            'admin001', password='admin123', major='x', class_name='x', name='管理员', phone='x', campus='x')
+        tok_admin, _ = Token.objects.get_or_create(user=admin)
+        self.c.credentials(HTTP_AUTHORIZATION='Token ' + tok_admin.key)
+
+        r = self.c.post('/api/news/', news, format='json')
+        self.assertEqual(r.status_code, 201)
+        nid = r.json()['id']
+
+        # 列表 + 按校区过滤
+        self.assertEqual(len(self.c.get('/api/news/').json()), 1)
+        self.assertEqual(len(self.c.get('/api/news/', {'campus': '本部'}, format='json').json()), 1)
+        self.assertEqual(len(self.c.get('/api/news/', {'campus': '宜宾'}, format='json').json()), 0)
+
+        # 更新 + 详情 + 删除
+        self.assertEqual(self.c.patch(f'/api/news/{nid}/', {'title': '迎新晚会改期'}, format='json').json()['title'], '迎新晚会改期')
+        self.assertEqual(self.c.get(f'/api/news/{nid}/').json()['title'], '迎新晚会改期')
+        self.assertEqual(self.c.delete(f'/api/news/{nid}/').status_code, 204)
+        self.assertEqual(len(self.c.get('/api/news/').json()), 0)
 
     def test_stream_auth(self):
         self.c.post('/api/register/', USER, format='json')
