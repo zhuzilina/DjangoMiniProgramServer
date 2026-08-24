@@ -5,7 +5,8 @@ from django.test import TestCase
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 
-from .models import Message, User
+from .models import Message, News, User
+from .tools import _execute
 
 USER = {'student_id': '20240001', 'major': '计算机', 'password': 'abc123',
         'class_name': '计科1班', 'name': '张三', 'phone': '13800000000', 'campus': '本部'}
@@ -114,6 +115,19 @@ class FlowTests(TestCase):
         self.assertEqual(self.client.post('/api/news/', {'title': 't', 'content': 'c', 'category': 'a',
                                                           'campus': 'b', 'publish_date': '2026-08-25'},
                                           content_type='application/json').status_code, 201)
+
+    def test_query_news_tool(self):
+        News.objects.create(title='迎新晚会', content='周五晚', category='活动', campus='本部', publish_date='2026-08-25')
+        # 安全查询
+        out = _execute("SELECT title FROM api_news WHERE campus='本部' LIMIT 5")
+        self.assertIn('迎新晚会', out)
+        # 非 SELECT / DDL / 多语句 / 越权表
+        self.assertIn('被拒绝', _execute('DELETE FROM api_news'))
+        self.assertIn('被拒绝', _execute("SELECT title FROM api_news; DROP TABLE api_news"))
+        self.assertIn('被拒绝', _execute("SELECT * FROM auth_user"))
+        self.assertIn('被拒绝', _execute('PRAGMA table_info(api_news)'))
+        # 数据未被破坏
+        self.assertEqual(News.objects.count(), 1)
 
     def test_stream_auth(self):
         self.c.post('/api/register/', USER, format='json')

@@ -3,6 +3,7 @@ from langchain_openai import ChatOpenAI
 
 from .ai_config import config
 from .system_prompt import SYSTEM_PROMPT
+from .tools import query_news
 
 
 async def load_agent(user_info: dict = None):
@@ -22,9 +23,10 @@ async def load_agent(user_info: dict = None):
         )
 
     # ponytail: 参考项目通过 MCP 挂载工具 + MemorySaver 记忆（依赖独立 MCP 进程）；
-    # 这里去掉 MCP 工具，对话记忆改由数据库会话历史提供（见 ChatStreamView）。
+    # 这里挂载本地资讯查询工具，对话记忆改由数据库会话历史提供（见 ChatStreamView）。
     agent_executor = create_agent(
         model=llm,
+        tools=[query_news],
         system_prompt=system_message,
     )
     return agent_executor
