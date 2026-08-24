@@ -1,0 +1,151 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>资讯管理 · 652学长</title>
+{% csrf_token %}
+<script src="{% static 'js/vue.global.prod.js' %}"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: "Microsoft YaHei", system-ui, sans-serif; margin: 0; background: #f5f6f8; color: #333; }
+  header { background: #2f54eb; color: #fff; padding: 14px 24px; font-size: 18px; display: flex; justify-content: space-between; align-items: center; }
+  header a { color: #fff; text-decoration: none; font-size: 14px; }
+  main { max-width: 960px; margin: 20px auto; padding: 0 16px; }
+  .card { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  h2 { margin: 0 0 14px; font-size: 16px; }
+  .form-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  input, textarea { padding: 8px 10px; border: 1px solid #d9d9d9; border-radius: 6px; font-size: 14px; }
+  input.title { width: 260px; } input.small { width: 140px; }
+  textarea { width: 100%; min-height: 70px; resize: vertical; }
+  button { padding: 8px 16px; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; }
+  .btn-primary { background: #2f54eb; color: #fff; } .btn-default { background: #f0f0f0; }
+  .btn-danger { background: #ff4d4f; color: #fff; padding: 4px 10px; }
+  .btn-sm { padding: 4px 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #f0f0f0; }
+  th { background: #fafafa; }
+  .content-cell { max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #1d39c4; cursor: pointer; }
+  .mask { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 10; }
+  .modal { background: #fff; border-radius: 8px; padding: 20px; max-width: 560px; width: 90%; max-height: 80vh; overflow: auto; }
+  .modal h2 { margin: 0 0 8px; font-size: 18px; }
+  .modal .meta { color: #999; font-size: 13px; margin-bottom: 12px; }
+  .modal .body { white-space: pre-wrap; line-height: 1.7; }
+  .msg { padding: 8px 12px; border-radius: 6px; margin-bottom: 10px; }
+  .err { background: #fff1f0; color: #cf1322; }
+  .empty { text-align: center; color: #999; padding: 24px 0; }
+</style>
+</head>
+<body>
+<header>652学长 · 校园资讯管理 <a href="/admin/logout/">退出</a></header>
+<main>
+  <div id="app">
+    {% verbatim %}
+    <div class="msg err" v-if="error">{{ error }}</div>
+
+    <div class="card">
+      <h2>{{ form.id ? '编辑资讯 #' + form.id : '新增资讯' }}</h2>
+      <div class="form-row">
+        <input class="title" v-model="form.title" placeholder="标题">
+        <input class="small" v-model="form.category" placeholder="类别">
+        <input class="small" v-model="form.campus" placeholder="校区">
+        <input class="small" type="date" v-model="form.publish_date">
+      </div>
+      <textarea v-model="form.content" placeholder="内容"></textarea>
+      <div class="form-row" style="margin-top:10px">
+        <button class="btn-primary" @click="submit">保存</button>
+        <button class="btn-default" v-if="form.id" @click="cancel">取消编辑</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>资讯列表（{{ news.length }} 条）</h2>
+      <table>
+        <thead><tr><th>ID</th><th>标题</th><th>类别</th><th>校区</th><th>发布日期</th><th>内容</th><th>操作</th></tr></thead>
+        <tbody>
+          <tr v-for="n in news" :key="n.id">
+            <td>{{ n.id }}</td>
+            <td>{{ n.title }}</td>
+            <td>{{ n.category }}</td>
+            <td>{{ n.campus }}</td>
+            <td>{{ n.publish_date }}</td>
+            <td class="content-cell" @click="view(n)" :title="n.content">{{ n.content }}</td>
+            <td>
+              <button class="btn-sm btn-default" @click="edit(n)">编辑</button>
+              <button class="btn-sm btn-danger" @click="remove(n)">删除</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="empty" v-if="!news.length">暂无资讯</div>
+    </div>
+
+    <div class="mask" v-if="detail" @click.self="closeDetail">
+      <div class="modal">
+        <h2>{{ detail.title }}</h2>
+        <div class="meta">{{ detail.category }} · {{ detail.campus }} · {{ detail.publish_date }}</div>
+        <div class="body">{{ detail.content }}</div>
+        <button class="btn-primary" style="margin-top:14px" @click="closeDetail">关闭</button>
+      </div>
+    </div>
+    {% endverbatim %}
+  </div>
+</main>
+<script>
+const { createApp } = Vue;
+createApp({
+  data() {
+    return {
+      news: [],
+      form: { id: null, title: '', content: '', category: '', campus: '', publish_date: '' },
+      detail: null,
+      error: '',
+    };
+  },
+  methods: {
+    csrf() {
+      const m = document.cookie.match(/(?:^|; )csrftoken=([^;]*)/);
+      return m ? decodeURIComponent(m[1]) : '';
+    },
+    async api(url, opts = {}) {
+      const r = await fetch(url, opts);
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        throw new Error(body.detail || body.error || '请求失败：' + r.status);
+      }
+      return r.json();
+    },
+    async load() {
+      this.news = await this.api('/api/news/');
+    },
+    async submit() {
+      this.error = '';
+      const f = this.form;
+      if (!f.title || !f.content || !f.publish_date) { this.error = '标题、内容、发布日期不能为空'; return; }
+      const url = f.id ? '/api/news/' + f.id + '/' : '/api/news/';
+      const method = f.id ? 'PUT' : 'POST';
+      await this.api(url, {
+        method, headers: { 'Content-Type': 'application/json', 'X-CSRFToken': this.csrf() },
+        body: JSON.stringify(f),
+      });
+      this.cancel();
+      this.load();
+    },
+    edit(n) { this.form = { ...n }; },
+    cancel() { this.form = { id: null, title: '', content: '', category: '', campus: '', publish_date: '' }; },
+    view(n) { this.detail = n; },
+    closeDetail() { this.detail = null; },
+    async remove(n) {
+      if (!confirm('确定删除「' + n.title + '」？')) return;
+      this.error = '';
+      const r = await fetch('/api/news/' + n.id + '/', { method: 'DELETE', headers: { 'X-CSRFToken': this.csrf() } });
+      if (!r.ok) { this.error = '删除失败：' + r.status; return; }
+      this.load();
+    },
+  },
+  mounted() { this.load().catch(e => this.error = e.message); },
+}).mount('#app');
+</script>
+</body>
+</html>

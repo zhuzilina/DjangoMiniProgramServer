@@ -3,6 +3,12 @@
 基于 Django + Django REST Framework 的纯接口服务，对接微信小程序。
 数据库使用 SQLite，Token 认证。
 
+## 管理后台
+
+- 资讯管理页：`http://127.0.0.1:8000/admin_news/`（仅管理员可访问，Django 登录）
+- Django 自带管理站：`http://127.0.0.1:8000/admin/`
+- 部署脚本会植入测试管理员：`admin001 / admin123`
+
 ## 快速开始
 
 ```bash

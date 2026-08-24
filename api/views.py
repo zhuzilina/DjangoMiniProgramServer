@@ -1,7 +1,9 @@
 import json
 
 from asgiref.sync import sync_to_async
+from django.contrib.admin.views.decorators import staff_member_required
 from django.http import StreamingHttpResponse
+from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework import viewsets
 from rest_framework.authentication import TokenAuthentication
@@ -177,6 +179,12 @@ class NewsViewSet(viewsets.ModelViewSet):
         if campus:
             qs = qs.filter(campus=campus)
         return qs
+
+
+@staff_member_required(login_url='/admin/login/')
+def admin_news_page(request):
+    """资讯管理后台页（仅管理员，session 登录，配合 Vue）"""
+    return render(request, 'admin_news.html')
 
 
 async def error_stream(msg: str):

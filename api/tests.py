@@ -92,6 +92,29 @@ class FlowTests(TestCase):
         self.assertEqual(self.c.delete(f'/api/news/{nid}/').status_code, 204)
         self.assertEqual(len(self.c.get('/api/news/').json()), 0)
 
+    def test_admin_news_page(self):
+        # 未登录 -> 重定向到管理登录页
+        r = self.client.get('/admin_news/')
+        self.assertEqual(r.status_code, 302)
+        self.assertIn('/admin/login/', r.url)
+        # 普通用户 -> 仍重定向（仅管理员）
+        normal = User.objects.create_user(USER['student_id'], password=USER['password'],
+                                          major='计算机', class_name='测试班', name='测试', phone='1', campus='本部')
+        self.client.force_login(normal)
+        self.assertEqual(self.client.get('/admin_news/').status_code, 302)
+        # 管理员 -> 页面可访问
+        admin = User.objects.create_superuser('admin001', password='admin123', major='x',
+                                              class_name='x', name='管理员', phone='x', campus='x')
+        self.client.force_login(admin)
+        r = self.client.get('/admin_news/')
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, '资讯管理')
+        self.assertContains(r, 'vue.global.prod.js')
+        # 管理员 session 直接调用资讯 API 增删改查
+        self.assertEqual(self.client.post('/api/news/', {'title': 't', 'content': 'c', 'category': 'a',
+                                                          'campus': 'b', 'publish_date': '2026-08-25'},
+                                          content_type='application/json').status_code, 201)
+
     def test_stream_auth(self):
         self.c.post('/api/register/', USER, format='json')
         # 未带 token -> 401

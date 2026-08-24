@@ -10,6 +10,7 @@ router.register('news', views.NewsViewSet, basename='news')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('admin_news/', views.admin_news_page),
     # 用户
     path('api/register/', views.RegisterView.as_view()),
     path('api/login/', views.LoginView.as_view()),
